@@ -45,7 +45,7 @@ vi.mock("./pdfParser", () => ({
   extractSchemeAllocations: mocks.extractSchemeAllocations,
 }));
 vi.mock("./storage", () => ({ storageGetSignedUrl: mocks.storageGetSignedUrl, storagePut: mocks.storagePut }));
-vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
+vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM, isLLMConfigured: () => process.env.DISABLE_AI !== "true" }));
 vi.mock("./visualMarketCapExtractor", () => ({ resolveVisualMarketCapAllocation: mocks.resolveVisualMarketCapAllocation }));
 vi.mock("./schemePageAllocationReader", () => ({ resolveSchemePageAllocation: mocks.resolveSchemePageAllocation }));
 vi.mock("axios", () => ({ default: { get: mocks.axiosGet } }));
@@ -113,7 +113,7 @@ describe("focused factsheet download-to-answer flow", () => {
       assetAllocations: [{ label: "Equity", percentage: 95.4 }],
     });
     mocks.storageGetSignedUrl.mockResolvedValue("https://signed-storage.example/factsheets/hdfc.pdf");
-    mocks.storagePut.mockResolvedValue({ key: "factsheets/hdfc.pdf", url: "/manus-storage/factsheets/hdfc.pdf" });
+    mocks.storagePut.mockResolvedValue({ key: "factsheets/hdfc.pdf", url: "/files/factsheets/hdfc.pdf" });
     mocks.axiosGet.mockResolvedValue({ data: Buffer.concat([Buffer.from("%PDF-1.7"), Buffer.alloc(1200)]) });
     mocks.createFactsheetDocument.mockResolvedValue(101);
     mocks.getFactsheetDocumentWithAmc.mockResolvedValue({
@@ -121,7 +121,7 @@ describe("focused factsheet download-to-answer flow", () => {
       amcName: "HDFC Mutual Fund",
       asOfLabel: "July 2026",
       fileKey: "factsheets/hdfc.pdf",
-      fileUrl: "/manus-storage/factsheets/hdfc.pdf",
+      fileUrl: "/files/factsheets/hdfc.pdf",
       resolvedPdfUrl: "https://files.hdfcfund.com/factsheet.pdf",
       extractedText: "HDFC Mutual Fund Factsheet — July 2026. Investment objective: long-term capital appreciation.",
       status: "parsed",
@@ -136,13 +136,13 @@ describe("focused factsheet download-to-answer flow", () => {
 
     const document = await caller.downloadLatest({ amcSlug: "hdfc" });
     if (!document.success) throw new Error(document.error);
-    expect(document).toMatchObject({ id: 101, amcName: "HDFC Mutual Fund", fileUrl: "/manus-storage/factsheets/hdfc.pdf" });
+    expect(document).toMatchObject({ id: 101, amcName: "HDFC Mutual Fund", fileUrl: "/files/factsheets/hdfc.pdf" });
     expect(mocks.storagePut).toHaveBeenCalledWith(expect.stringContaining("factsheets/direct/hdfc/"), expect.any(Buffer), "application/pdf");
     expect(mocks.createFactsheetDocument).toHaveBeenCalledWith(expect.objectContaining({
       amcId: 10,
       sourceId: 20,
       extractedText: expect.stringContaining("Investment objective"),
-      fileUrl: "/manus-storage/factsheets/hdfc.pdf",
+      fileUrl: "/files/factsheets/hdfc.pdf",
     }));
 
     const answer = await caller.ask({ documentId: document.id, question: "What is the investment objective?" });
@@ -212,7 +212,7 @@ describe("focused factsheet download-to-answer flow", () => {
     mocks.listAmcSourcesWithLatestDocuments.mockResolvedValueOnce([{
       id: 20, amcId: 10, amcName: "HDFC Mutual Fund", amcSlug: "hdfc",
       sourceUrl: "https://www.hdfcfund.com/mutual-funds/factsheets", sourceKind: "page", documentScope: "amc", discoveryMode: "html", isActive: 1,
-      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/manus-storage/factsheets/hdfc-current.pdf", downloadedAt: now },
+      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/files/factsheets/hdfc-current.pdf", downloadedAt: now },
       latestOutcome: { status: "parsed", createdAt: new Date() },
     }]);
     const caller = factsheetsRouter.createCaller(ctx as never);
@@ -225,7 +225,7 @@ describe("focused factsheet download-to-answer flow", () => {
     mocks.listAmcSourcesWithLatestDocuments.mockResolvedValueOnce([{
       id: 20, amcId: 10, amcName: "HDFC Mutual Fund", amcSlug: "hdfc",
       sourceUrl: "https://www.hdfcfund.com/mutual-funds/factsheets", sourceKind: "page", documentScope: "amc", discoveryMode: "html", isActive: 1,
-      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/manus-storage/factsheets/hdfc-current.pdf", downloadedAt: new Date("2026-08-11T00:00:00.000Z") },
+      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/files/factsheets/hdfc-current.pdf", downloadedAt: new Date("2026-08-11T00:00:00.000Z") },
       latestOutcome: { status: "parsed", createdAt: new Date("2026-08-11T00:00:00.000Z") },
     }]);
     const caller = factsheetsRouter.createCaller(ctx as never);
@@ -237,7 +237,7 @@ describe("focused factsheet download-to-answer flow", () => {
     mocks.listAmcSourcesWithLatestDocuments.mockResolvedValueOnce([{
       id: 20, amcId: 10, amcName: "HDFC Mutual Fund", amcSlug: "hdfc",
       sourceUrl: "https://www.hdfcfund.com/mutual-funds/factsheets", sourceKind: "page", documentScope: "amc", discoveryMode: "html", isActive: 1,
-      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/manus-storage/factsheets/hdfc-current.pdf", downloadedAt: now },
+      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/files/factsheets/hdfc-current.pdf", downloadedAt: now },
     }]);
     const caller = factsheetsRouter.createCaller(ctx as never);
     const document = await caller.downloadLatest({ amcSlug: "hdfc", forceRefresh: true });
@@ -250,7 +250,7 @@ describe("focused factsheet download-to-answer flow", () => {
     mocks.listAmcSourcesWithLatestDocuments.mockResolvedValueOnce([{
       id: 20, amcId: 10, amcName: "HDFC Mutual Fund", amcSlug: "hdfc",
       sourceUrl: "https://www.hdfcfund.com/mutual-funds/factsheets", sourceKind: "page", documentScope: "amc", discoveryMode: "html", isActive: 1,
-      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/manus-storage/factsheets/hdfc-current.pdf", downloadedAt: now },
+      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/files/factsheets/hdfc-current.pdf", downloadedAt: now },
     }]);
     mocks.parseFactsheet.mockResolvedValueOnce({ rawText: "HDFC Mutual Fund Factsheet — August 2026.", sectorAllocations: [], assetAllocations: [], marketCapAllocations: [] });
     const caller = factsheetsRouter.createCaller(ctx as never);
@@ -263,7 +263,7 @@ describe("focused factsheet download-to-answer flow", () => {
     mocks.listAmcSourcesWithLatestDocuments.mockResolvedValueOnce([{
       id: 20, amcId: 10, amcName: "HDFC Mutual Fund", amcSlug: "hdfc",
       sourceUrl: "https://www.hdfcfund.com/mutual-funds/factsheets", sourceKind: "page", documentScope: "amc", discoveryMode: "html", isActive: 1,
-      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/manus-storage/factsheets/hdfc-current.pdf", downloadedAt: now },
+      latestDocument: { id: 77, asOfLabel: "July 2026", fileUrl: "/files/factsheets/hdfc-current.pdf", downloadedAt: now },
     }]);
     mocks.parseFactsheet.mockResolvedValueOnce({ rawText: "HDFC Mutual Fund Factsheet — April 2028.", sectorAllocations: [], assetAllocations: [], marketCapAllocations: [] });
     const caller = factsheetsRouter.createCaller(ctx as never);
@@ -273,7 +273,7 @@ describe("focused factsheet download-to-answer flow", () => {
   });
 
   it("reuses only an exact selected-period cache entry and passes the requested month to registry discovery", async () => {
-    mocks.getFactsheetDocumentForPeriod.mockResolvedValueOnce({ id: 78, asOfLabel: "July 2026", fileUrl: "/manus-storage/factsheets/hdfc-july.pdf" });
+    mocks.getFactsheetDocumentForPeriod.mockResolvedValueOnce({ id: 78, asOfLabel: "July 2026", fileUrl: "/files/factsheets/hdfc-july.pdf" });
     const caller = factsheetsRouter.createCaller(ctx as never);
     const cached = await caller.downloadLatest({ amcSlug: "hdfc", requestedPeriod: { year: 2026, month: 6 } });
     expect(cached).toMatchObject({ success: true, id: 78, asOfLabel: "July 2026" });

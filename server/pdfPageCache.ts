@@ -1,5 +1,5 @@
 import { PDFParse } from "pdf-parse";
-import { ENV } from "./_core/env";
+import { FILE_ROUTE_PREFIX, keyFromFileRouteUrl, readPdfBytes } from "./storage";
 
 export type PdfTextPage = { num: number; text: string };
 
@@ -12,13 +12,8 @@ const pageCache = new Map<string, CachedPages>();
 export function isReadablePdfUrl(url: string | null | undefined) {
   if (!url) return false;
   if (url.startsWith("https://")) return true;
-  if (!ENV.localMode) return false;
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === "http:" && ["localhost", "127.0.0.1"].includes(parsed.hostname);
-  } catch {
-    return false;
-  }
+  // Our own stored files, read straight from storage rather than over HTTP.
+  return url.startsWith(FILE_ROUTE_PREFIX) || keyFromFileRouteUrl(url) !== undefined;
 }
 
 function stableCacheKey(value: string) {
@@ -48,9 +43,7 @@ export async function getCachedPdfTextPages(pdfUrl: string, cacheKey = pdfUrl): 
   if (cached && cached.expiresAt > Date.now()) return cached.promise;
 
   const promise = (async () => {
-    const response = await fetch(pdfUrl);
-    if (!response.ok) throw new Error(`PDF request failed with ${response.status}`);
-    const parser = new PDFParse({ data: new Uint8Array(await response.arrayBuffer()) });
+    const parser = new PDFParse({ data: await readPdfBytes(pdfUrl) });
     try {
       const text = await parser.getText();
       return text.pages.map((page) => ({ num: page.num, text: page.text }));

@@ -150,8 +150,8 @@ Do not “speed up” the parser by weakening selected-scheme boundaries, allowi
 | API | Express 4, tRPC 11, Zod | Typed procedures for AMC registry, retrieval, factsheets, allocations, and chat |
 | Database | Drizzle ORM with MySQL/TiDB | Application records, documents, evidence, AMFI snapshots, and audit data |
 | PDF handling | `pdf-parse` plus controlled visual fallback | Page text, scheme boundaries, structural table extraction |
-| Storage | Hosted object storage in current deployment; local filesystem in local mode | Original cached PDFs |
-| Authentication | Hosted OAuth/JWT in current deployment; local single-admin shortcut in local mode | User/session identity |
+| Storage | Local disk (`STORAGE_DRIVER=local`) or any S3-compatible bucket (`STORAGE_DRIVER=s3`), served through the signed-in `/files/` route | Original cached PDFs |
+| Authentication | Self-hosted: `AUTH_MODE=none` (single local administrator) or `AUTH_MODE=password` (email + scrypt-hashed password, JWT session cookie) | User/session identity |
 | AI | OpenAI-compatible model interface | Optional factsheet chat and visual-layout fallback only |
 
 ### Key files
@@ -169,7 +169,7 @@ Do not “speed up” the parser by weakening selected-scheme boundaries, allowi
 | `server/amfiClassificationService.ts` | Official AMFI workbook import and calculation-evidence persistence |
 | `server/marketCapFallbackPolicy.ts` | Enforces factsheet-disclosed allocation precedence |
 | `client/src/pages/FactsheetWorkspacePage.tsx` | Main user workspace and multi-scheme comparison UI |
-| `drizzle/schema.ts` and `drizzle/0000...0009` | Database schema and required migrations |
+| `drizzle/schema.ts` and `drizzle/0000...0010` | Database schema and required migrations |
 
 ---
 
@@ -187,13 +187,13 @@ Do not “speed up” the parser by weakening selected-scheme boundaries, allowi
 | `calculated_market_cap_evidence` | Calculation result, coverage, mapping/unresolved JSON, snapshot reference, status |
 | `chat_contexts` | Saved factsheet-grounded chat questions/answers and source snapshot |
 
-Apply every migration up to and including `drizzle/0009_even_inertia.sql`. Migration `0009` is mandatory for AMFI and calculated-market-cap support.
+Apply every migration up to and including `drizzle/0010_local_password_auth.sql`. Migration `0009` is mandatory for AMFI and calculated-market-cap support; `0010` adds password sign-in.
 
 ---
 
 ## 9. Local, Self-Contained Claude Deployment
 
-The handover includes a local mode so the recipient does not need hosted OAuth, hosted object storage, or a manually provisioned database.
+The app is fully self-hosted. It has no dependency on the platform it was first built on: login, storage, AI and scheduling are all implemented in this codebase or configured through environment variables (see `README.md`).
 
 1. Claude should follow `CLAUDE_AUTORUN_PROMPT.md`.
 2. `docker compose up -d --build` launches MySQL and the application.

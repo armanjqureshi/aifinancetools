@@ -1,3 +1,8 @@
+# Runs the MF Factsheet Bot and its MySQL database.
+#
+# Laptop (default): no settings needed.  docker compose up -d --build
+# Team server: copy .env.example to .env, set AUTH_MODE=password, a strong
+# JWT_SECRET, ADMIN_EMAIL / ADMIN_PASSWORD, and put HTTPS in front of port 3000.
 services:
   database:
     image: mysql:8.4
@@ -5,33 +10,45 @@ services:
     environment:
       MYSQL_DATABASE: mf_factsheet_bot
       MYSQL_USER: mf_local
-      MYSQL_PASSWORD: mf_local_password
-      MYSQL_ROOT_PASSWORD: mf_local_root_password
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-mf_local_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-mf_local_root_password}
     volumes:
       - ./local-data/mysql:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pmf_local_root_password"]
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD"]
       interval: 5s
       timeout: 5s
       retries: 30
 
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile.local
+    build: .
     restart: unless-stopped
     depends_on:
       database:
         condition: service_healthy
     environment:
       PORT: 3000
-      LOCAL_MODE: "true"
-      LOCAL_APP_ORIGIN: http://localhost:3000
+      DATABASE_URL: mysql://mf_local:${MYSQL_PASSWORD:-mf_local_password}@database:3306/mf_factsheet_bot
+      LOCAL_MODE: ${LOCAL_MODE:-true}
+      AUTH_MODE: ${AUTH_MODE:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:-local-only-secret-replace-before-any-shared-deployment}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
       LOCAL_STORAGE_DIR: /app/local-data/storage
-      DATABASE_URL: mysql://mf_local:mf_local_password@database:3306/mf_factsheet_bot
-      JWT_SECRET: local-development-only-change-before-public-deployment
-      DISABLE_AI: "true"
+      LOCAL_APP_ORIGIN: ${PUBLIC_URL:-http://localhost:3000}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_REGION: ${S3_REGION:-ap-south-1}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-false}
+      DISABLE_AI: ${DISABLE_AI:-true}
+      LLM_API_URL: ${LLM_API_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_DEFAULT_MODEL: ${LLM_DEFAULT_MODEL:-}
     ports:
-      - "3000:3000"
+      - "${APP_PORT:-3000}:3000"
     volumes:
       - ./local-data/storage:/app/local-data/storage

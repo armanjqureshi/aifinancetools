@@ -3,14 +3,13 @@ import express from "express";
 import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import { registerOAuthRoutes } from "./oauth";
-import { registerStorageProxy } from "./storageProxy";
+import { registerFileRoutes } from "./fileRoutes";
+import { ensureAdminFromEnv } from "./auth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { factsheetRetryHandler, monthlyRunHandler } from "../scheduledHandlers";
 import { ENV } from "./env";
-import { getLocalStorageDirectory } from "../storage";
+import { isLLMConfigured } from "./llm";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -37,15 +36,11 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
-  if (ENV.localMode) {
-    app.use("/local-storage", express.static(getLocalStorageDirectory(), { fallthrough: false }));
-  } else {
-    registerStorageProxy(app);
-    registerOAuthRoutes(app);
-  }
-  // Scheduled job handlers — MUST be before Vite/static fallthrough
-  app.post("/api/scheduled/monthly-run", monthlyRunHandler);
-  app.post("/api/scheduled/factsheet-retry", factsheetRetryHandler);
+  app.disable("x-powered-by");
+  if (process.env.TRUST_PROXY === "true") app.set("trust proxy", 1);
+  if (ENV.authMode === "password") await ensureAdminFromEnv();
+  console.log(`[Config] auth=${ENV.authMode} storage=${ENV.storageDriver} ai=${isLLMConfigured() ? "on" : "off"}`);
+  registerFileRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

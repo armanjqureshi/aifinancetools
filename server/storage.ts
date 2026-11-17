@@ -1,27 +1,25 @@
-// Preconfigured storage helpers for Manus WebDev templates
-// Uploads via Forge Server presigned URL to S3 (PUT direct).
-// Downloads return /manus-storage/{key} paths served via 307 redirect.
+// File storage for cached factsheet PDFs and generated reports.
+//
+// Two drivers, chosen with STORAGE_DRIVER:
+//   local  PDFs are written under LOCAL_STORAGE_DIR (default ./local-data/storage)
+//   s3     PDFs are written to any S3-compatible bucket (AWS S3, Cloudflare R2,
+//          MinIO, DigitalOcean Spaces) using S3_* settings
+//
+// Stored files are always exposed to the browser as /files/<key>. That route
+// checks the session before serving (see server/_core/fileRoutes.ts), so cached
+// PDFs are never public on a team server.
 
-import { ENV } from "./_core/env";
-import { mkdir, writeFile } from "node:fs/promises";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { ENV } from "./_core/env";
 
-function getForgeConfig() {
-  const forgeUrl = ENV.forgeApiUrl;
-  const forgeKey = ENV.forgeApiKey;
-
-  if (!forgeUrl || !forgeKey) {
-    throw new Error(
-      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY",
-    );
-  }
-
-  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
-}
+export const FILE_ROUTE_PREFIX = "/files/";
 
 function normalizeKey(relKey: string): string {
   const key = relKey.replace(/^\/+/, "").replace(/\\/g, "/");
-  if (!key || key.split("/").some((segment) => segment === "..")) throw new Error("Invalid storage key");
+  if (!key || key.split("/").some((segment) => segment === ".." || segment === ".")) throw new Error("Invalid storage key");
   return key;
 }
 
@@ -36,8 +34,30 @@ function localStoragePath(key: string) {
   return target;
 }
 
-function localStorageUrl(key: string) {
-  return `/local-storage/${key.split("/").map(encodeURIComponent).join("/")}`;
+/** Public app path for a stored key, e.g. /files/factsheets/hdfc/july_ab12cd34.pdf */
+export function fileRouteUrl(key: string) {
+  return `${FILE_ROUTE_PREFIX}${normalizeKey(key).split("/").map(encodeURIComponent).join("/")}`;
+}
+
+/** Reverse of fileRouteUrl. Returns undefined for anything that is not one of our /files/ paths. */
+export function keyFromFileRouteUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  let pathname = url;
+  if (/^https?:\/\//i.test(url)) {
+    try {
+      const parsed = new URL(url);
+      if (parsed.origin !== new URL(ENV.localAppOrigin).origin) return undefined;
+      pathname = parsed.pathname;
+    } catch {
+      return undefined;
+    }
+  }
+  if (!pathname.startsWith(FILE_ROUTE_PREFIX)) return undefined;
+  try {
+    return normalizeKey(pathname.slice(FILE_ROUTE_PREFIX.length).split("/").map(decodeURIComponent).join("/"));
+  } catch {
+    return undefined;
+  }
 }
 
 function appendHashSuffix(relKey: string): string {
@@ -47,78 +67,80 @@ function appendHashSuffix(relKey: string): string {
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 
+let s3Client: S3Client | undefined;
+function getS3() {
+  if (!ENV.s3Bucket) throw new Error("Storage config missing: set S3_BUCKET (and S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY) when STORAGE_DRIVER=s3");
+  if (!s3Client) {
+    s3Client = new S3Client({
+      region: ENV.s3Region,
+      ...(ENV.s3Endpoint ? { endpoint: ENV.s3Endpoint } : {}),
+      forcePathStyle: ENV.s3ForcePathStyle,
+      ...(ENV.s3AccessKeyId && ENV.s3SecretAccessKey
+        ? { credentials: { accessKeyId: ENV.s3AccessKeyId, secretAccessKey: ENV.s3SecretAccessKey } }
+        : {}),
+    });
+  }
+  return { client: s3Client, bucket: ENV.s3Bucket };
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
-  if (ENV.localMode) {
-    const key = appendHashSuffix(normalizeKey(relKey));
+  const key = appendHashSuffix(normalizeKey(relKey));
+  if (ENV.storageDriver === "s3") {
+    const { client, bucket } = getS3();
+    await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: typeof data === "string" ? Buffer.from(data) : data, ContentType: contentType }));
+  } else {
     const target = localStoragePath(key);
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, data);
-    return { key, url: localStorageUrl(key) };
   }
-  const { forgeUrl, forgeKey } = getForgeConfig();
-  const key = appendHashSuffix(normalizeKey(relKey));
-
-  // 1. Get presigned PUT URL from Forge
-  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
-  presignUrl.searchParams.set("path", key);
-
-  const presignResp = await fetch(presignUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
-  });
-
-  if (!presignResp.ok) {
-    const msg = await presignResp.text().catch(() => presignResp.statusText);
-    throw new Error(`Storage presign failed (${presignResp.status}): ${msg}`);
-  }
-
-  const { url: s3Url } = (await presignResp.json()) as { url: string };
-  if (!s3Url) throw new Error("Forge returned empty presign URL");
-
-  // 2. PUT file directly to S3
-  const blob =
-    typeof data === "string"
-      ? new Blob([data], { type: contentType })
-      : new Blob([data as any], { type: contentType });
-
-  const uploadResp = await fetch(s3Url, {
-    method: "PUT",
-    headers: { "Content-Type": contentType },
-    body: blob,
-  });
-
-  if (!uploadResp.ok) {
-    throw new Error(`Storage upload to S3 failed (${uploadResp.status})`);
-  }
-
-  return { key, url: `/manus-storage/${key}` };
+  return { key, url: fileRouteUrl(key) };
 }
 
 export async function storageGet(relKey: string): Promise<{ key: string; url: string }> {
   const key = normalizeKey(relKey);
-  return { key, url: ENV.localMode ? localStorageUrl(key) : `/manus-storage/${key}` };
+  return { key, url: fileRouteUrl(key) };
 }
 
-export async function storageGetSignedUrl(relKey: string): Promise<string> {
-  if (ENV.localMode) return new URL(localStorageUrl(normalizeKey(relKey)), ENV.localAppOrigin).toString();
-  const { forgeUrl, forgeKey } = getForgeConfig();
+/** Read a stored object straight into memory (server-side parsing, AI attachments). */
+export async function storageRead(relKey: string): Promise<Buffer> {
   const key = normalizeKey(relKey);
-
-  const getUrl = new URL("v1/storage/presign/get", forgeUrl + "/");
-  getUrl.searchParams.set("path", key);
-
-  const resp = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
-  });
-
-  if (!resp.ok) {
-    const msg = await resp.text().catch(() => resp.statusText);
-    throw new Error(`Storage signed URL failed (${resp.status}): ${msg}`);
+  if (ENV.storageDriver === "s3") {
+    const { client, bucket } = getS3();
+    const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    if (!result.Body) throw new Error(`Stored file is empty: ${key}`);
+    return Buffer.from(await result.Body.transformToByteArray());
   }
+  return readFile(localStoragePath(key));
+}
 
-  const { url } = (await resp.json()) as { url: string };
-  return url;
+/** A short-lived direct S3 link, or the local file path for the local driver. */
+export async function storageDirectLocation(relKey: string): Promise<{ kind: "redirect"; url: string } | { kind: "file"; path: string }> {
+  const key = normalizeKey(relKey);
+  if (ENV.storageDriver === "s3") {
+    const { client, bucket } = getS3();
+    return { kind: "redirect", url: await getSignedUrl(client, new GetObjectCommand({ Bucket: bucket, Key: key }), { expiresIn: 300 }) };
+  }
+  return { kind: "file", path: localStoragePath(key) };
+}
+
+/**
+ * URL used by the server's own PDF readers. Kept for call-site compatibility:
+ * it now returns the internal /files/ path, which pdfPageCache and the AI
+ * client resolve directly through storageRead (no HTTP round trip).
+ */
+export async function storageGetSignedUrl(relKey: string): Promise<string> {
+  return fileRouteUrl(relKey);
+}
+
+/** Fetch PDF bytes for one of our /files/ URLs, or an external https URL. */
+export async function readPdfBytes(url: string): Promise<Uint8Array> {
+  const key = keyFromFileRouteUrl(url);
+  if (key) return new Uint8Array(await storageRead(key));
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`PDF request failed with ${response.status}`);
+  return new Uint8Array(await response.arrayBuffer());
 }

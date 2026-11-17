@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM, isLLMConfigured } from "./_core/llm";
 import { ENV } from "./_core/env";
 
 export type VerifiedPortfolioHolding = {
@@ -116,7 +116,7 @@ export async function extractVisualPortfolioFromVerifiedPages(input: {
   selectedSchemeName: string;
   allowedPages: number[];
 }) {
-  if (!ENV.aiEnabled) return undefined;
+  if (!isLLMConfigured()) return undefined;
   try {
     const response = await invokeLLM({
       model: "gemini-3-flash-preview",

@@ -27,7 +27,7 @@ NODE_ENV=production pnpm start
 
 Provision a MySQL 8-compatible database or TiDB instance and set `DATABASE_URL`. Do not point production at the current host’s database.
 
-Apply every migration in chronological order, including `drizzle/0009_even_inertia.sql`. Use the Drizzle migration workflow only after confirming that the target schema is empty or appropriately backed up.
+Apply every migration in chronological order, including `drizzle/0010_local_password_auth.sql`. Use the Drizzle migration workflow only after confirming that the target schema is empty or appropriately backed up.
 
 ```bash
 pnpm drizzle-kit migrate
@@ -43,32 +43,16 @@ Database data and object-store files are not included in this package. A source-
 
 ## 3. Required Runtime Services
 
-### Standard Portable Deployment
+The app is self-hosted and needs only what is listed in `.env.example`:
 
 | Requirement | Action |
 |---|---|
-| `DATABASE_URL` | Use a MySQL/TiDB connection string compatible with Drizzle `mysql2`. |
-| PDF object storage | Replace the host-specific Forge storage functions in `server/storage.ts` and `server/_core/storageProxy.ts` with an S3-compatible adapter, such as S3, R2, MinIO, or an approved local-disk store. |
-| Authentication | Replace the host-specific OAuth code under `server/_core` with a portable authentication/session solution. Keep protected tRPC procedures protected. |
-| `JWT_SECRET` | Generate a new long random secret. Never reuse or copy an existing secret. |
-| HTTPS / reverse proxy | Configure forwarded protocol headers and secure cookies before exposing authenticated access. |
-| Optional AI | Add a server-side model provider only if chatbot and visual fallback are retained. Keep API keys outside Git. |
-
-### Host-Specific Variables to Replace
-
-The following variables are tied to the previous hosting environment and are not portable as-is:
-
-```text
-VITE_APP_ID
-OAUTH_SERVER_URL
-OWNER_OPEN_ID
-BUILT_IN_FORGE_API_URL
-BUILT_IN_FORGE_API_KEY
-VITE_FRONTEND_FORGE_API_URL
-VITE_FRONTEND_FORGE_API_KEY
-```
-
-`DATABASE_URL` and a newly generated `JWT_SECRET` remain necessary. The host-specific variables must be replaced by equivalent auth/storage/AI integrations or the corresponding feature must be disabled.
+| `DATABASE_URL` | MySQL 8 or TiDB. `docker compose` provides one. |
+| `JWT_SECRET` | Random, 32+ characters (`openssl rand -hex 32`). Required when `AUTH_MODE=password`. |
+| Sign-in | `AUTH_MODE=none` on a laptop, `AUTH_MODE=password` on a server. First admin from `ADMIN_EMAIL` / `ADMIN_PASSWORD`; more accounts with `pnpm user:create`. |
+| PDF storage | `STORAGE_DRIVER=local` (disk) or `s3` with `S3_*` settings (AWS S3, Cloudflare R2, MinIO, Spaces). |
+| HTTPS | Put Caddy, Nginx or a load balancer in front and set `TRUST_PROXY=true` so session cookies are marked Secure. |
+| Optional AI | `DISABLE_AI=false` plus `LLM_API_URL`, `LLM_API_KEY`, `LLM_DEFAULT_MODEL` for any OpenAI-compatible provider. |
 
 ## 4. No-AI / Local-Cost Mode
 

@@ -1,5 +1,5 @@
 import { getVisualAllocationEvidence, upsertVisualAllocationEvidence } from "./db";
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM, isLLMConfigured } from "./_core/llm";
 import { getCachedPdfTextPages, isReadablePdfUrl } from "./pdfPageCache";
 import { ENV } from "./_core/env";
 
@@ -187,7 +187,7 @@ export async function resolveVisualMarketCapAllocation(input: {
     return { allocations: [], evidence: { method: "not_found", confidence: 0, sourcePage: null, evidence, failureClass: "no_table_on_page" } };
   }
 
-  if (!ENV.aiEnabled) {
+  if (!isLLMConfigured()) {
     return {
       allocations: [],
       evidence: {

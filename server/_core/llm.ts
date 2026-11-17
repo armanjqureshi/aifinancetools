@@ -1,4 +1,5 @@
 import { ENV } from "./env";
+import { readPdfBytes } from "../storage";
 
 export type Role = "system" | "user" | "assistant" | "tool" | "function";
 
@@ -132,8 +133,8 @@ const normalizeContentPart = (
     return part;
   }
 
-  if (part.type === "file_url") {
-    return part;
+  if (part.type === "file_url" || (part as { type: string }).type === "file") {
+    return part as FileContent;
   }
 
   throw new Error("Unsupported message content part");
@@ -212,16 +213,42 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.llmApiUrl && ENV.llmApiUrl.trim().length > 0
-    ? `${ENV.llmApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+/**
+ * LLM_API_URL may be given with or without the trailing /v1, e.g.
+ * https://api.openai.com or https://openrouter.ai/api/v1.
+ */
+const resolveEndpoint = (path: "chat/completions" | "models") => {
+  const base = ENV.llmApiUrl.trim().replace(/\/+$/, "");
+  return /\/v\d+$/.test(base) ? `${base}/${path}` : `${base}/v1/${path}`;
+};
 
 const assertApiKey = () => {
-  if (!ENV.llmApiKey) {
-    throw new Error("LLM_API_KEY is not configured");
-  }
+  if (!ENV.aiEnabled) throw new Error("AI is disabled (DISABLE_AI=true)");
+  if (!ENV.llmApiUrl.trim()) throw new Error("LLM_API_URL is not configured");
+  if (!ENV.llmApiKey) throw new Error("LLM_API_KEY is not configured");
 };
+
+export const isLLMConfigured = () => ENV.aiEnabled && Boolean(ENV.llmApiUrl.trim() && ENV.llmApiKey);
+
+/**
+ * The OpenAI-compatible chat API takes PDFs as {type:"file", file:{file_data}}
+ * with base64 data. Callers pass a file_url pointing at our stored PDF; it is
+ * read from storage here so the provider never needs access to our server.
+ */
+const inlineFileParts = async (messages: Message[]): Promise<Message[]> =>
+  Promise.all(messages.map(async (message) => {
+    if (typeof message.content === "string") return message;
+    const parts = await Promise.all(ensureArray(message.content).map(async (part) => {
+      if (typeof part === "string" || part.type !== "file_url") return part;
+      const mime = part.file_url.mime_type ?? "application/pdf";
+      const bytes = await readPdfBytes(part.file_url.url);
+      return {
+        type: "file",
+        file: { filename: "factsheet.pdf", file_data: `data:${mime};base64,${Buffer.from(bytes).toString("base64")}` },
+      } as unknown as MessageContent;
+    }));
+    return { ...message, content: parts };
+  }));
 
 const normalizeResponseFormat = ({
   responseFormat,
@@ -359,7 +386,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    messages: messages.map(normalizeMessage),
+    messages: (await inlineFileParts(messages)).map(normalizeMessage),
   };
 
   if (model || ENV.llmDefaultModel) {
@@ -401,7 +428,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetchWithBackoff(resolveApiUrl(), {
+  const response = await fetchWithBackoff(resolveEndpoint("chat/completions"), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -435,9 +462,7 @@ export type ModelsResponse = {
 export async function listLLMModels(): Promise<ModelsResponse> {
   assertApiKey();
 
-  const url = ENV.llmApiUrl && ENV.llmApiUrl.trim().length > 0
-    ? `${ENV.llmApiUrl.replace(/\/$/, "")}/v1/models`
-    : "https://forge.manus.im/v1/models";
+  const url = resolveEndpoint("models");
 
   const response = await fetchWithBackoff(url, {
     headers: { authorization: `Bearer ${ENV.llmApiKey}` },

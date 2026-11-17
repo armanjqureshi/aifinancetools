@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Bot, CheckCircle2, Circle, Download, ExternalLink, FileText, Layers3, Loader2, Plus, RefreshCw, Search, Send, Sparkles, Upload, User, X } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { startLogin } from "@/const";
+import { goToLogin } from "@/const";
 import { useAuth } from "@/_core/hooks/useAuth";
 import AppLayout from "@/components/AppLayout";
 import { Badge } from "@/components/ui/badge";
@@ -387,7 +387,7 @@ export default function FactsheetWorkspacePage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10"><FileText className="h-7 w-7 text-primary" /></div>
           <h1 className="mt-5 text-2xl font-semibold tracking-tight">Read mutual fund factsheets</h1>
           <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose an AMC from your registered source directory, download its latest factsheet, and ask questions based on the PDF.</p>
-          <Button className="mt-6" onClick={() => startLogin()}>Sign in</Button>
+          <Button className="mt-6" onClick={() => goToLogin()}>Sign in</Button>
         </div>
       </AppLayout>
     );

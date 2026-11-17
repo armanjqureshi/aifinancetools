@@ -27,7 +27,6 @@ import {
   type InsertUser,
   type InsertVisualAllocationEvidence,
 } from "../drizzle/schema";
-import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -56,8 +55,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet[field] = user[field] ?? null;
     }
   }
-  values.role = user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
-  updateSet.role = values.role;
+  values.role = user.role ?? "user";
+  if (user.role !== undefined) updateSet.role = user.role;
   updateSet.lastSignedIn = values.lastSignedIn;
   await db.insert(users).values(values).onDuplicateKeyUpdate({ set: updateSet });
 }
@@ -66,6 +65,24 @@ export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
   return (await db.select().from(users).where(eq(users.openId, openId)).limit(1))[0];
+}
+
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  return (await db.select().from(users).where(eq(users.email, email)).orderBy(asc(users.id)).limit(1))[0];
+}
+
+export async function setUserPasswordHash(openId: string, passwordHash: string) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.update(users).set({ passwordHash }).where(eq(users.openId, openId));
+}
+
+export async function listUsers() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select({ id: users.id, email: users.email, name: users.name, role: users.role, loginMethod: users.loginMethod, lastSignedIn: users.lastSignedIn }).from(users).orderBy(asc(users.id));
 }
 
 // ── Mutual Funds ─────────────────────────────────────────────────────────────

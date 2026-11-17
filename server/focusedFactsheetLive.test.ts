@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ invokeLLM: vi.fn() }));
 
-vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM }));
+vi.mock("./_core/llm", () => ({ invokeLLM: mocks.invokeLLM, isLLMConfigured: () => process.env.DISABLE_AI !== "true" }));
 
 import { appRouter } from "./routers";
 
@@ -37,7 +37,7 @@ describe.runIf(process.env.RUN_LIVE_FACTSHEET_TESTS === "true")("live focused fa
     const document = await caller.factsheets.downloadLatest({ amcSlug: "hdfc" });
 
     expect(document.id).toBeGreaterThan(0);
-    expect(document.fileUrl).toContain("/manus-storage/factsheets/direct/hdfc/");
+    expect(document.fileUrl).toContain("/files/factsheets/direct/hdfc/");
     expect(document.textLength).toBeGreaterThan(100_000);
 
     const answer = await caller.factsheets.ask({

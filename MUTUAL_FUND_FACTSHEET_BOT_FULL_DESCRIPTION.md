@@ -92,8 +92,8 @@ The user-facing manual review queue is intentionally removed. Low-confidence, un
 - **Backend/API:** Express 4, tRPC 11, and Zod.
 - **Database:** Drizzle ORM with MySQL/TiDB schema and migrations.
 - **PDF processing:** `pdf-parse`, page-aware extraction, deterministic readers, a shared parsed-page cache, and guarded optional visual fallback.
-- **Storage:** Hosted object storage in the original hosted configuration; local filesystem storage in local mode.
-- **Authentication:** Hosted OAuth/JWT in hosted mode; local administrator behavior in local mode.
+- **Storage:** Local disk or any S3-compatible bucket, chosen with `STORAGE_DRIVER`.
+- **Authentication:** Self-hosted. No sign-in on a laptop (`AUTH_MODE=none`), or email and password accounts on a team server (`AUTH_MODE=password`).
 - **AI:** Optional OpenAI-compatible adapter; disabled by default in the local deployment.
 
 Important modules include `server/routers/factsheets.ts` for retrieval and factsheet APIs, `server/registryDownloader.ts` and `server/officialPublicFeeds.ts` for AMC document discovery, `server/pdfParser.ts` and `server/schemePageAllocationReader.ts` for deterministic extraction, `server/pdfPageCache.ts` for reusable page text, `server/visualMarketCapExtractor.ts` and `server/visualPortfolioExtractor.ts` for controlled visual fallback, and `server/sebiMarketCapCalculation.ts` / `server/amfiClassificationService.ts` for the dated AMFI/SEBI market-cap calculation.

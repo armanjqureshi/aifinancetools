@@ -71,6 +71,13 @@
       "when": 1787570769390,
       "tag": "0009_even_inertia",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1794920974030,
+      "tag": "0010_local_password_auth",
+      "breakpoints": true
     }
   ]
 }

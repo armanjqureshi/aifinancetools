@@ -61,4 +61,4 @@ For UI changes, check desktop and mobile rendering. Do not remove evidence links
 
 ## First Claude Task
 
-First establish a portable deployment as described in `DEPLOYMENT_RUNBOOK.md`. Do **not** copy the prior hosted platform’s secrets. Replace its proprietary OAuth and storage adapters, or run a local no-AI mode. Only after deployment and migration verification should feature work resume.
+The app is already portable and self-hosted. Follow `README.md` to run it. Never copy secrets between environments.

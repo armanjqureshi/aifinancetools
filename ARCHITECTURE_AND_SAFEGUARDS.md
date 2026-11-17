@@ -35,7 +35,7 @@ AMC source / direct official PDF / upload
 | ORM/database | Drizzle + MySQL/TiDB | Retain MySQL 8-compatible database |
 | PDF text | `pdf-parse` | Retain unchanged |
 | PDF cache | Host-provided presigned storage helper | Replace `server/storage.ts` and `server/_core/storageProxy.ts` with S3/R2/MinIO/local-disk adapter |
-| Authentication | Host-specific OAuth/JWT adapter | Replace the `server/_core` auth implementation with Auth.js, Clerk, a basic local-password flow, or a local single-admin policy |
+| Authentication | `server/_core/auth.ts` | Self-hosted: `AUTH_MODE=none` or `AUTH_MODE=password` (scrypt hashes, signed session cookie, sign-in throttling) |
 | AI chat/visual fallback | Host-provided OpenAI-compatible proxy | Optional; replace with a provider key or disable for no-AI mode |
 
 ## Data Model

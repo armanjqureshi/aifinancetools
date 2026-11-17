@@ -21,12 +21,21 @@ afterEach(async () => {
 });
 
 describe("local-mode storage", () => {
-  it("writes cached PDFs locally and creates browser and server-readable URLs", async () => {
-    const { storageGetSignedUrl, storagePut } = await import("./storage");
+  it("writes cached PDFs to disk and exposes them only through the /files/ route", async () => {
+    const { storageGetSignedUrl, storagePut, readPdfBytes, keyFromFileRouteUrl } = await import("./storage");
     const stored = await storagePut("factsheets/test/latest.pdf", Buffer.from("%PDF-local"), "application/pdf");
 
     expect(stored.key).toMatch(/^factsheets\/test\/latest_[a-f0-9]{8}\.pdf$/);
-    expect(stored.url).toMatch(/^\/local-storage\/factsheets\/test\/latest_[a-f0-9]{8}\.pdf$/);
-    await expect(storageGetSignedUrl(stored.key)).resolves.toBe(`http://localhost:3000${stored.url}`);
+    expect(stored.url).toBe(`/files/${stored.key}`);
+    await expect(storageGetSignedUrl(stored.key)).resolves.toBe(stored.url);
+    expect(keyFromFileRouteUrl(stored.url)).toBe(stored.key);
+    expect(Buffer.from(await readPdfBytes(stored.url)).toString()).toBe("%PDF-local");
+  });
+
+  it("rejects keys that try to leave the storage folder", async () => {
+    const { storagePut, keyFromFileRouteUrl } = await import("./storage");
+    await expect(storagePut("../outside.pdf", Buffer.from("x"))).rejects.toThrow(/Invalid storage key/);
+    expect(keyFromFileRouteUrl("/files/%2e%2e/secret")).toBeUndefined();
+    expect(keyFromFileRouteUrl("/local-storage/a.pdf")).toBeUndefined();
   });
 });

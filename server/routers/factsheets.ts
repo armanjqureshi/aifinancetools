@@ -1,8 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import axios from "axios";
-import { parse as parseCookie } from "cookie";
-import { COOKIE_NAME } from "@shared/const";
 import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import {
   createChatContext,
@@ -19,19 +17,16 @@ import {
   reportingPeriodSortValue,
   saveVisualAllocationReview,
   updateAmcDownloadRetry,
-  upsertAmcDownloadRetry,
 } from "../db";
 import { downloadFromRegistry } from "../registryDownloader";
 import { downloadFactsheet } from "../pdfDownloader";
 import { detectFundHouse } from "../fundHouseDetector";
 import { extractSchemeAllocations, extractSchemeNames, parseFactsheet } from "../pdfParser";
 import { storageGetSignedUrl, storagePut } from "../storage";
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM, isLLMConfigured } from "../_core/llm";
 import { resolveVisualMarketCapAllocation } from "../visualMarketCapExtractor";
 import { resolveSchemePageAllocation } from "../schemePageAllocationReader";
 import { SourceDownloadDeadlineError, withSourceDownloadDeadline } from "../downloadDeadline";
-import { createHeartbeatJob } from "../_core/heartbeat";
-import { DAILY_RETRY_SOURCES } from "../retryPolicy";
 import { extractFactsheetPeriod, matchesRequestedPeriod } from "../factsheetPeriod";
 import { SELECTED_PERIOD_COVERAGE } from "../archiveCoverage";
 import { getHybridAdapterProfile } from "../hybridAdapterRegistry";
@@ -151,42 +146,6 @@ export const factsheetsRouter = router({
   recent: protectedProcedure.query(() => listRecentFactsheetDocuments()),
 
   retryStatus: protectedProcedure.query(() => listAmcDownloadRetries()),
-
-  enableDailyRetries: protectedProcedure.mutation(async ({ ctx }) => {
-    const sessionToken = parseCookie(ctx.req.headers.cookie ?? "")[COOKIE_NAME] ?? "";
-    const sources = await listAmcSources();
-    const existing = await listAmcDownloadRetries();
-    const existingByAmcId = new Map(existing.map((retry) => [retry.amcId, retry]));
-    const now = new Date();
-
-    for (const source of sources) {
-      const status = DAILY_RETRY_SOURCES[source.amcSlug];
-      if (!status || existingByAmcId.has(source.amcId)) continue;
-      await upsertAmcDownloadRetry({
-        amcId: source.amcId,
-        sourceId: source.id,
-        status,
-        attemptCount: 0,
-        nextRetryAt: now,
-        isEnabled: 1,
-      });
-    }
-
-    const retries = await listAmcDownloadRetries();
-    for (const retry of retries) {
-      if (retry.scheduleCronTaskUid) continue;
-      const minute = 5 + (retry.id % 50);
-      const job = await createHeartbeatJob({
-        name: `factsheet-retry-${retry.id}`,
-        cron: `0 ${minute} 6 * * *`,
-        path: "/api/scheduled/factsheet-retry",
-        payload: {},
-        description: `Daily retry for ${retry.amcName} factsheet source`,
-      }, sessionToken);
-      await updateAmcDownloadRetry(retry.id, { scheduleCronTaskUid: job.taskUid, isEnabled: 1 });
-    }
-    return { enabled: true, retries: await listAmcDownloadRetries() };
-  }),
 
   downloadLatest: protectedProcedure
     .input(z.object({
@@ -615,7 +574,7 @@ export const factsheetsRouter = router({
       if (input.schemeName && !selectedScheme) {
         throw new TRPCError({ code: "BAD_REQUEST", message: "Choose a scheme listed in this downloaded factsheet before asking scheme-specific questions." });
       }
-      if (!ENV.aiEnabled) {
+      if (!isLLMConfigured()) {
         return {
           answer: "Factsheet chat is disabled in local no-AI mode. You can still use the downloaded PDF, validated scheme list, page evidence, portfolio composition, and deterministic allocation tables.",
           source: { name: document.amcName, documentId: document.id, fileUrl: document.fileUrl },

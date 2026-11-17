@@ -3,7 +3,7 @@ import superjson from "superjson";
 
 type TransportOptions = {
   url: string;
-  headers: () => Record<string, string>;
+  headers?: () => Record<string, string>;
   fetchImpl?: typeof globalThis.fetch;
 };
 
@@ -16,7 +16,7 @@ export function shouldBatchTrpcOperation(operationType: string) {
  * A factsheet download can take minutes. Mutations therefore use httpLink,
  * which sends one request per operation; only queries use the batch link.
  */
-export function createTrpcTransportLinks({ url, headers, fetchImpl = globalThis.fetch }: TransportOptions) {
+export function createTrpcTransportLinks({ url, headers = () => ({}), fetchImpl = globalThis.fetch }: TransportOptions) {
   const withCredentials = (input: RequestInfo | URL, init?: RequestInit) =>
     fetchImpl(input, { ...(init ?? {}), credentials: "include" });
 
