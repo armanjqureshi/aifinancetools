@@ -1,0 +1,37 @@
+services:
+  database:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: mf_factsheet_bot
+      MYSQL_USER: mf_local
+      MYSQL_PASSWORD: mf_local_password
+      MYSQL_ROOT_PASSWORD: mf_local_root_password
+    volumes:
+      - ./local-data/mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-pmf_local_root_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      LOCAL_MODE: "true"
+      LOCAL_APP_ORIGIN: http://localhost:3000
+      LOCAL_STORAGE_DIR: /app/local-data/storage
+      DATABASE_URL: mysql://mf_local:mf_local_password@database:3306/mf_factsheet_bot
+      JWT_SECRET: local-development-only-change-before-public-deployment
+      DISABLE_AI: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./local-data/storage:/app/local-data/storage

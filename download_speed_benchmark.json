@@ -1,0 +1,11 @@
+{
+  "sourceListMs": 2206,
+  "cachedBulkCount": 25,
+  "missingBulkCount": 25,
+  "cachedSingleLookupMs": 0,
+  "cachedSample": "Abakkus Mutual Fund",
+  "cachedDocumentId": 1080002,
+  "missingSample": "Bandhan Mutual Fund",
+  "missingDiscoveryMs": 4426,
+  "missingOutcome": "not_downloaded"
+}

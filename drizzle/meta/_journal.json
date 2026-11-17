@@ -1,0 +1,76 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1786364452783,
+      "tag": "0000_legal_trauma",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1786364643140,
+      "tag": "0001_adorable_deathstrike",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1786454039575,
+      "tag": "0002_wandering_night_nurse",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1786455774431,
+      "tag": "0003_silky_korath",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1786540076825,
+      "tag": "0004_glorious_thaddeus_ross",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1787064614851,
+      "tag": "0005_moaning_virginia_dare",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1787118656460,
+      "tag": "0006_lowly_betty_brant",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1787120559259,
+      "tag": "0007_wooden_black_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1787129022123,
+      "tag": "0008_volatile_microchip",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1787570769390,
+      "tag": "0009_even_inertia",
+      "breakpoints": true
+    }
+  ]
+}

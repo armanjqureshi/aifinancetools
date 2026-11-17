@@ -1,0 +1,1 @@
+ALTER TABLE `visual_allocation_evidence` MODIFY COLUMN `allocation_type` enum('market_cap','industry','portfolio') NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE `visual_allocation_evidence` ADD `failure_class` enum('verified','no_scheme_page','no_table_on_page','provider_unavailable','invalid_response') DEFAULT 'invalid_response' NOT NULL;

@@ -1,0 +1,14 @@
+node_modules
+dist
+.git
+.manus
+.manus-logs
+.env
+.env.*
+local-data
+coverage
+tmp
+temp
+*.log
+*.pdf
+*.xlsx
