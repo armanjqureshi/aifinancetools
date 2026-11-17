@@ -39,6 +39,6 @@ pnpm exec tsc --noEmit # passed
 - [x] Storage replaced: local disk or any S3-compatible bucket; stored PDFs served only to signed-in users at `/files/<key>`
 - [x] AI: no built-in fallback endpoint; any OpenAI-compatible provider via `LLM_*`; PDFs sent as standard base64 `file` parts
 - [x] Removed the platform's job scheduler, the unauthenticated `/api/scheduled/*` endpoints, owner notifications, maps, image, voice and data APIs, build plugins, analytics script and nine unrouted template pages
-- [x] Migration `0010_local_password_auth.sql` adds `users.passwordHash`
+- [x] Migration `0010_local_password_auth.sql` adds `users.passwordHash`; `0011_remove_old_scheduler.sql` drops the old scheduler table and job-ID columns
 - [x] Fixed: start-up bootstrap never exited (open DB pool), so the Docker app never started; AMFI download now time-limited
 - [x] Verified: 148 tests pass against a live database, typecheck and build pass, sign-in and file access checked in a browser

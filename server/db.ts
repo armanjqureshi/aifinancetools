@@ -5,7 +5,6 @@ import {
   amcDownloadRetries,
   amcSources,
   chatContexts,
-  cronConfig,
   factsheetDocuments,
   fundAllocations,
   fundRunResults,
@@ -252,37 +251,11 @@ export async function listAmcDownloadRetries() {
       lastSuccessAt: amcDownloadRetries.lastSuccessAt,
       lastError: amcDownloadRetries.lastError,
       isEnabled: amcDownloadRetries.isEnabled,
-      scheduleCronTaskUid: amcDownloadRetries.scheduleCronTaskUid,
     })
     .from(amcDownloadRetries)
     .innerJoin(amcs, eq(amcDownloadRetries.amcId, amcs.id))
     .innerJoin(amcSources, eq(amcDownloadRetries.sourceId, amcSources.id))
     .orderBy(asc(amcs.name));
-}
-
-export async function getAmcDownloadRetryByTaskUid(taskUid: string) {
-  const db = await getDb();
-  if (!db) return undefined;
-  return (await db
-    .select({
-      id: amcDownloadRetries.id,
-      amcId: amcDownloadRetries.amcId,
-      sourceId: amcDownloadRetries.sourceId,
-      amcName: amcs.name,
-      amcSlug: amcs.slug,
-      sourceUrl: amcSources.sourceUrl,
-      documentScope: amcSources.documentScope,
-      status: amcDownloadRetries.status,
-      attemptCount: amcDownloadRetries.attemptCount,
-      nextRetryAt: amcDownloadRetries.nextRetryAt,
-      isEnabled: amcDownloadRetries.isEnabled,
-      scheduleCronTaskUid: amcDownloadRetries.scheduleCronTaskUid,
-    })
-    .from(amcDownloadRetries)
-    .innerJoin(amcs, eq(amcDownloadRetries.amcId, amcs.id))
-    .innerJoin(amcSources, eq(amcDownloadRetries.sourceId, amcSources.id))
-    .where(eq(amcDownloadRetries.scheduleCronTaskUid, taskUid))
-    .limit(1))[0];
 }
 
 export async function updateAmcDownloadRetry(id: number, data: Partial<InsertAmcDownloadRetry>) {
@@ -651,25 +624,4 @@ export async function saveVisualAllocationReview(input: {
     reviewedBy: input.reviewedBy,
     reviewedAt: new Date(),
   }).where(eq(visualAllocationEvidence.id, input.id));
-}
-// ── Cron Configuration ───────────────────────────────────────────────────────
-
-export async function getCronConfig() {
-  const db = await getDb();
-  if (!db) return undefined;
-  return (await db.select().from(cronConfig).limit(1))[0];
-}
-
-export async function upsertCronConfig(data: {
-  taskUid?: string | null;
-  isEnabled?: number;
-  cronExpression?: string;
-  lastRunAt?: Date | null;
-  nextRunAt?: Date | null;
-}) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  const existing = await getCronConfig();
-  if (existing) await db.update(cronConfig).set(data).where(eq(cronConfig.id, existing.id));
-  else await db.insert(cronConfig).values({ ...data, isEnabled: data.isEnabled ?? 1 });
 }

@@ -27,7 +27,7 @@ NODE_ENV=production pnpm start
 
 Provision a MySQL 8-compatible database or TiDB instance and set `DATABASE_URL`. Do not point production at the current host’s database.
 
-Apply every migration in chronological order, including `drizzle/0010_local_password_auth.sql`. Use the Drizzle migration workflow only after confirming that the target schema is empty or appropriately backed up.
+Apply every migration in chronological order, including `drizzle/0011_remove_old_scheduler.sql`. Use the Drizzle migration workflow only after confirming that the target schema is empty or appropriately backed up.
 
 ```bash
 pnpm drizzle-kit migrate

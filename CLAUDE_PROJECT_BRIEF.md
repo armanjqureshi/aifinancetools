@@ -169,7 +169,7 @@ Do not “speed up” the parser by weakening selected-scheme boundaries, allowi
 | `server/amfiClassificationService.ts` | Official AMFI workbook import and calculation-evidence persistence |
 | `server/marketCapFallbackPolicy.ts` | Enforces factsheet-disclosed allocation precedence |
 | `client/src/pages/FactsheetWorkspacePage.tsx` | Main user workspace and multi-scheme comparison UI |
-| `drizzle/schema.ts` and `drizzle/0000...0010` | Database schema and required migrations |
+| `drizzle/schema.ts` and `drizzle/0000...0011` | Database schema and required migrations |
 
 ---
 
@@ -187,7 +187,7 @@ Do not “speed up” the parser by weakening selected-scheme boundaries, allowi
 | `calculated_market_cap_evidence` | Calculation result, coverage, mapping/unresolved JSON, snapshot reference, status |
 | `chat_contexts` | Saved factsheet-grounded chat questions/answers and source snapshot |
 
-Apply every migration up to and including `drizzle/0010_local_password_auth.sql`. Migration `0009` is mandatory for AMFI and calculated-market-cap support; `0010` adds password sign-in.
+Apply every migration up to and including `drizzle/0011_remove_old_scheduler.sql`. Migration `0009` is mandatory for AMFI and calculated-market-cap support; `0010` adds password sign-in.
 
 ---
 

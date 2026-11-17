@@ -78,6 +78,13 @@
       "when": 1794920974030,
       "tag": "0010_local_password_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "5",
+      "when": 1794922089373,
+      "tag": "0011_remove_old_scheduler",
+      "breakpoints": true
     }
   ]
 }

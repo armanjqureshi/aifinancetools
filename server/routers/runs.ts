@@ -4,7 +4,6 @@ import { eq } from "drizzle-orm";
 import { protectedProcedure, router } from "../_core/trpc";
 import {
   createFundRunResult,
-  getCronConfig,
   getDb,
   getFundAllocationsByRunJob,
   getFundRunResultsByJobId,
@@ -14,7 +13,6 @@ import {
   insertFundAllocations,
   listRunJobs,
   updateFundRunResult,
-  upsertCronConfig,
 } from "../db";
 import { runPipeline } from "../runPipeline";
 import { storageGet, storagePut } from "../storage";
@@ -129,10 +127,4 @@ export const runsRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `PDF parsing failed: ${message}` });
       }
     }),
-
-  getCronConfig: protectedProcedure.query(() => getCronConfig()),
-  updateCronConfig: protectedProcedure.input(z.object({ isEnabled: z.number().optional(), cronExpression: z.string().optional() })).mutation(async ({ input }) => {
-    await upsertCronConfig(input);
-    return { success: true };
-  }),
 });

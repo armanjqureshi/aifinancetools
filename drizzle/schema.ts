@@ -85,13 +85,11 @@ export const amcDownloadRetries = mysqlTable(
     lastSuccessAt: timestamp("last_success_at"),
     lastError: text("last_error"),
     isEnabled: int("is_enabled").default(1).notNull(),
-    scheduleCronTaskUid: varchar("schedule_cron_task_uid", { length: 65 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
   },
   (table) => [
     uniqueIndex("amc_download_retries_amc_unique").on(table.amcId),
-    uniqueIndex("amc_download_retries_task_unique").on(table.scheduleCronTaskUid),
     index("amc_download_retries_due_idx").on(table.isEnabled, table.nextRetryAt),
   ]
 );
@@ -300,7 +298,6 @@ export const runJobs = mysqlTable("run_jobs", {
   excelFileKey: varchar("excel_file_key", { length: 512 }),
   excelFileUrl: text("excel_file_url"),
   errorMessage: text("error_message"),
-  scheduleCronTaskUid: varchar("schedule_cron_task_uid", { length: 65 }),
   startedAt: timestamp("started_at").defaultNow().notNull(),
   completedAt: timestamp("completed_at"),
 });
@@ -339,14 +336,3 @@ export const fundAllocations = mysqlTable("fund_allocations", {
 export type FundAllocation = typeof fundAllocations.$inferSelect;
 export type InsertFundAllocation = typeof fundAllocations.$inferInsert;
 
-export const cronConfig = mysqlTable("cron_config", {
-  id: int("id").autoincrement().primaryKey(),
-  taskUid: varchar("task_uid", { length: 65 }),
-  isEnabled: int("is_enabled").default(1).notNull(),
-  cronExpression: varchar("cron_expression", { length: 64 }).default("0 0 6 1 * *").notNull(),
-  lastRunAt: timestamp("last_run_at"),
-  nextRunAt: timestamp("next_run_at"),
-  updatedAt: timestamp("updated_at").defaultNow().onUpdateNow().notNull(),
-});
-
-export type CronConfig = typeof cronConfig.$inferSelect;
