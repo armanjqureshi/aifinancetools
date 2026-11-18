@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, like, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lt } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   amcs,
@@ -6,11 +6,6 @@ import {
   amcSources,
   chatContexts,
   factsheetDocuments,
-  fundAllocations,
-  fundRunResults,
-  mutualFunds,
-  runJobs,
-  schemeCatalog,
   users,
   visualAllocationEvidence,
   type InsertAmc,
@@ -18,11 +13,6 @@ import {
   type InsertAmcSource,
   type InsertChatContext,
   type InsertFactsheetDocument,
-  type InsertFundAllocation,
-  type InsertFundRunResult,
-  type InsertMutualFund,
-  type InsertRunJob,
-  type InsertSchemeCatalogEntry,
   type InsertUser,
   type InsertVisualAllocationEvidence,
 } from "../drizzle/schema";
@@ -85,36 +75,6 @@ export async function listUsers() {
 }
 
 // ── Mutual Funds ─────────────────────────────────────────────────────────────
-
-export async function listMutualFunds() {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(mutualFunds).where(eq(mutualFunds.isActive, 1)).orderBy(asc(mutualFunds.name));
-}
-
-export async function getMutualFundById(id: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  return (await db.select().from(mutualFunds).where(eq(mutualFunds.id, id)).limit(1))[0];
-}
-
-export async function insertMutualFund(fund: InsertMutualFund) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  return (await db.insert(mutualFunds).values(fund))[0].insertId as number;
-}
-
-export async function updateMutualFund(id: number, data: Partial<InsertMutualFund>) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.update(mutualFunds).set(data).where(eq(mutualFunds.id, id));
-}
-
-export async function deleteMutualFund(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.update(mutualFunds).set({ isActive: 0 }).where(eq(mutualFunds.id, id));
-}
 
 // ── AMC Registry & Scheme Catalog ────────────────────────────────────────────
 
@@ -216,23 +176,6 @@ export async function getAmcBySlug(slug: string) {
   return (await db.select().from(amcs).where(eq(amcs.slug, slug)).limit(1))[0];
 }
 
-export async function upsertAmcDownloadRetry(data: InsertAmcDownloadRetry) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.insert(amcDownloadRetries).values(data).onDuplicateKeyUpdate({
-    set: {
-      sourceId: data.sourceId,
-      status: data.status,
-      attemptCount: data.attemptCount,
-      nextRetryAt: data.nextRetryAt,
-      lastAttemptAt: data.lastAttemptAt ?? null,
-      lastError: data.lastError ?? null,
-      isEnabled: data.isEnabled ?? 1,
-    },
-  });
-  return (await db.select().from(amcDownloadRetries).where(eq(amcDownloadRetries.amcId, data.amcId)).limit(1))[0];
-}
-
 export async function listAmcDownloadRetries() {
   const db = await getDb();
   if (!db) return [];
@@ -291,15 +234,6 @@ export async function upsertAmcSource(source: InsertAmcSource) {
   });
 }
 
-export async function updateAmcSource(
-  id: number,
-  data: Partial<Pick<InsertAmcSource, "sourceUrl" | "sourceKind" | "documentScope" | "discoveryMode" | "notes" | "priority" | "isActive">>
-) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.update(amcSources).set(data).where(eq(amcSources.id, id));
-}
-
 export async function seedAmcRegistry(
   entries: Array<{
     name: string;
@@ -335,24 +269,6 @@ export function normalizeSchemeName(name: string) {
     .replace(/\s+/g, " ");
 }
 
-export async function upsertSchemeCatalogEntry(entry: InsertSchemeCatalogEntry) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  const existing = await db
-    .select()
-    .from(schemeCatalog)
-    .where(and(eq(schemeCatalog.amcId, entry.amcId), eq(schemeCatalog.normalizedName, entry.normalizedName)))
-    .limit(1);
-  if (existing[0]) {
-    await db
-      .update(schemeCatalog)
-      .set({ ...entry, lastSeenAt: new Date(), isActive: entry.isActive ?? 1 })
-      .where(eq(schemeCatalog.id, existing[0].id));
-    return existing[0].id;
-  }
-  return (await db.insert(schemeCatalog).values({ ...entry, lastSeenAt: new Date() }))[0].insertId as number;
-}
-
 export async function createFactsheetDocument(document: InsertFactsheetDocument) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
@@ -371,17 +287,6 @@ export async function getFactsheetDocumentForPeriod(amcId: number, sourceId: num
       eq(factsheetDocuments.asOfLabel, asOfLabel),
       eq(factsheetDocuments.status, "parsed")
     ))
-    .orderBy(desc(factsheetDocuments.downloadedAt))
-    .limit(1))[0];
-}
-
-export async function getLatestFactsheetDocumentForScheme(schemeId: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  return (await db
-    .select()
-    .from(factsheetDocuments)
-    .where(eq(factsheetDocuments.schemeId, schemeId))
     .orderBy(desc(factsheetDocuments.downloadedAt))
     .limit(1))[0];
 }
@@ -438,114 +343,11 @@ export async function createChatContext(context: InsertChatContext) {
   return (await db.insert(chatContexts).values(context))[0].insertId as number;
 }
 
-export async function searchSchemeCatalog(query: string, limit = 25) {
-  const db = await getDb();
-  if (!db) return [];
-  const normalized = normalizeSchemeName(query);
-  if (!normalized) return [];
-  return db
-    .select({
-      id: schemeCatalog.id,
-      name: schemeCatalog.name,
-      normalizedName: schemeCatalog.normalizedName,
-      schemeCode: schemeCatalog.schemeCode,
-      isin: schemeCatalog.isin,
-      factsheetUrl: schemeCatalog.factsheetUrl,
-      amcId: amcs.id,
-      amcName: amcs.name,
-      amcSlug: amcs.slug,
-    })
-    .from(schemeCatalog)
-    .innerJoin(amcs, eq(schemeCatalog.amcId, amcs.id))
-    .where(and(eq(schemeCatalog.isActive, 1), like(schemeCatalog.normalizedName, `%${normalized}%`)))
-    .orderBy(asc(amcs.name), asc(schemeCatalog.name))
-    .limit(limit);
-}
-
-export async function searchAmcDirectory(query: string, limit = 25) {
-  const db = await getDb();
-  if (!db) return [];
-  const normalized = normalizeSchemeName(query);
-  if (!normalized) return [];
-  return db
-    .select({ id: amcs.id, name: amcs.name, slug: amcs.slug })
-    .from(amcs)
-    .where(and(eq(amcs.isActive, 1), like(sql`lower(${amcs.name})`, `%${normalized}%`)))
-    .orderBy(asc(amcs.name))
-    .limit(limit);
-}
-
 // ── Run Jobs ─────────────────────────────────────────────────────────────────
-
-export async function createRunJob(data: InsertRunJob) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  return (await db.insert(runJobs).values(data))[0].insertId as number;
-}
-
-export async function updateRunJob(id: number, data: Partial<InsertRunJob>) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.update(runJobs).set(data).where(eq(runJobs.id, id));
-}
-
-export async function getRunJobById(id: number) {
-  const db = await getDb();
-  if (!db) return undefined;
-  return (await db.select().from(runJobs).where(eq(runJobs.id, id)).limit(1))[0];
-}
-
-export async function listRunJobs(limit = 10) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(runJobs).orderBy(desc(runJobs.startedAt)).limit(limit);
-}
-
-export async function getLatestRunJob() {
-  const db = await getDb();
-  if (!db) return null;
-  return (await db.select().from(runJobs).orderBy(desc(runJobs.startedAt)).limit(1))[0] ?? null;
-}
 
 // ── Fund Run Results ─────────────────────────────────────────────────────────
 
-export async function createFundRunResult(data: InsertFundRunResult) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  return (await db.insert(fundRunResults).values(data))[0].insertId as number;
-}
-
-export async function updateFundRunResult(id: number, data: Partial<InsertFundRunResult>) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  await db.update(fundRunResults).set(data).where(eq(fundRunResults.id, id));
-}
-
-export async function getFundRunResultsByJobId(runJobId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(fundRunResults).where(eq(fundRunResults.runJobId, runJobId));
-}
-
 // ── Fund Allocations ─────────────────────────────────────────────────────────
-
-export async function insertFundAllocations(data: InsertFundAllocation[]) {
-  const db = await getDb();
-  if (!db) throw new Error("DB not available");
-  if (data.length) await db.insert(fundAllocations).values(data);
-}
-
-export async function getFundAllocationsByRunJob(runJobId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(fundAllocations).where(eq(fundAllocations.runJobId, runJobId));
-}
-
-export async function getFundAllocationsByFundAndRun(fundId: number, runJobId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  return db.select().from(fundAllocations).where(and(eq(fundAllocations.fundId, fundId), eq(fundAllocations.runJobId, runJobId)));
-}
 
 // ── Visual Allocation Evidence ───────────────────────────────────────────────
 export async function getVisualAllocationEvidence(documentId: number, normalizedSchemeName: string, allocationType: "market_cap" | "industry" | "portfolio") {

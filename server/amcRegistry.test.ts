@@ -39,11 +39,16 @@ describe("reportingPeriodSortValue", () => {
   });
 });
 
-describe("AMC Registry router", () => {
-  it("loads the AMC Registry mutation procedures into the root router", () => {
-    const procedures = appRouter._def.procedures;
-    expect(procedures["amcs.seedProvidedSources"]).toBeDefined();
-    expect(procedures["amcs.discoverSchemes"]).toBeDefined();
+describe("API surface", () => {
+  it("exposes only the sign-in, system and factsheet sections", () => {
+    const sections = new Set(Object.keys(appRouter._def.procedures).map((name) => name.split(".")[0]));
+    expect([...sections].sort()).toEqual(["auth", "factsheets", "system"]);
   });
 
+  it("does not expose the retired run, fund, AMC-admin or chat sections", () => {
+    const procedures = Object.keys(appRouter._def.procedures);
+    for (const retired of ["amcs.", "funds.", "runs.", "chat."]) {
+      expect(procedures.some((name) => name.startsWith(retired))).toBe(false);
+    }
+  });
 });

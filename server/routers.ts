@@ -16,19 +16,11 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, publicProcedure, router } from "./_core/trpc";
 import { getUserByEmail, listUsers, upsertUser } from "./db";
 import { factsheetsRouter } from "./routers/factsheets";
-import { amcsRouter } from "./routers/amcs";
-import { fundsRouter } from "./routers/funds";
-import { runsRouter } from "./routers/runs";
-import { chatRouter } from "./routers/chat";
 
 export const appRouter = router({
   system: systemRouter,
   factsheets: factsheetsRouter,
   // Retained for internal compatibility while the client uses only factsheets.
-  amcs: amcsRouter,
-  funds: fundsRouter,
-  runs: runsRouter,
-  chat: chatRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user
       ? { id: opts.ctx.user.id, name: opts.ctx.user.name, email: opts.ctx.user.email, role: opts.ctx.user.role, loginMethod: opts.ctx.user.loginMethod }
